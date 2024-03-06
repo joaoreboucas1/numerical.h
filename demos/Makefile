@@ -4,13 +4,17 @@ CFLAGS = -Wall -Wextra
 
 NUMERICAL = ../numerical.h
 
-all: demo_trapz demo_ode
+all: demo_trapz demo_ode demo_interp
 
 demo_trapz: $(NUMERICAL) demo_trapz.c
 	$(CC) $(CFLAGS) demo_trapz.c -o demo_trapz $(LIBS)
 
 demo_ode: $(NUMERICAL) demo_ode.c
 	$(CC) $(CFLAGS) demo_ode.c -o demo_ode $(LIBS)
+
+demo_interp: $(NUMERICAL) demo_interp.c
+	$(CC) $(CFLAGS) demo_interp.c -o demo_interp $(LIBS)
+
 
 clean:
 	rm demo

@@ -6,6 +6,7 @@
 ## Implemented routines
   - Trapezoid rule for numerical integration
   - 1D ODE solver via Euler's algorithm
+  - Linear interpolator
 
 ## Examples
 We provide C examples for each numerical routine in the `demos/` folder. We also provide a `Makefile` that builds executables for demonstration. To build the demos, simply go to the `demos/` folder and use `make`:
