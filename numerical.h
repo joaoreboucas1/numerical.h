@@ -4,13 +4,12 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+// Parameters to be passed into functions for numerical integration
 typedef struct {
     int *int_args;
     float *float_args;
 } Params;
 
-// TODO: LinearInterp doesn't really need to precompute as and bs
-// Refactor to { float *xs, float *ys, size_t n_points }
 typedef struct {
     float *as;
     float *bs;
@@ -28,10 +27,14 @@ typedef struct {
     size_t n_points;
 } CubicSpline;
 
+// Numerical integration
 float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from a to b with N points
 float trapezoid_args(float f(float, Params), float a, float b, size_t N, Params params); // Integrate function with parameters
+
+// ODE integration
 float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps
-// TODO: make the get_interpolator functions assert that the array `xs` is sorted
+
+// Interpolation
 LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
 float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `LinearInterpolator` object at `x`
 CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
@@ -81,7 +84,6 @@ float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size
     return ys;
 }
 
-
 LinearInterp get_linear_interpolator(float *xs, float *ys, size_t n_points)
 {
     size_t n_segments = n_points - 1;
@@ -93,6 +95,12 @@ LinearInterp get_linear_interpolator(float *xs, float *ys, size_t n_points)
     }
     for (size_t i = 0; i < n_segments; i++) {
         float dx = xs[i+1] - xs[i];
+        if (dx < 0) {
+            fprintf(stderr, "ERROR: array `xs` for linear interpolation must be sorted\n");
+            free(as);
+            free(bs);
+            return (LinearInterp) {0};
+        }
         float dy = ys[i+1] - ys[i];
         as[i] = dy/dx;
         bs[i] = ys[i] - as[i]*xs[i];
@@ -102,23 +110,22 @@ LinearInterp get_linear_interpolator(float *xs, float *ys, size_t n_points)
 
 float eval_linear_interpolator(LinearInterp interp, float x)
 {
+    size_t index = 0;
     if (x < interp.xs[0]) {
         printf("WARNING: interpolation function evaluated below x_min = %f, extrapolating linearly.\n", interp.xs[0]);
-        return interp.as[0]*x + interp.bs[0];
     } else if (x > interp.xs[interp.n_points-1]) {
         printf("WARNING: interpolation function evaluated above x_max = %f, extrapolating linearly.\n", interp.xs[interp.n_points-1]);
-        return interp.as[interp.n_points - 2]*x + interp.bs[interp.n_points - 2];
+        index = interp.n_points - 2;
     } else {
         // Find index
-        size_t index = 0;
         for (size_t i = 1; i < interp.n_points; i++) {
             if (x < interp.xs[i]) {
                 index = i-1;
                 break;
             }
         }
-        return interp.as[index]*x + interp.bs[index];
     }
+    return interp.as[index]*x + interp.bs[index];
 }
 
 CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points)
@@ -146,6 +153,14 @@ CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points)
 
     for (size_t i = 0; i < n_segments; i++) {
         hs[i] = xs[i+1] - xs[i];
+        if (hs[i] < 0) {
+            fprintf(stderr, "ERROR: array `xs` for Cubic Spline must be sorted\n");
+            free(as);
+            free(bs);
+            free(cs);
+            free(ds);
+            return (CubicSpline) {0};
+        }
     }
 
     for (size_t i = 1; i < n_segments; i++) {
@@ -176,28 +191,26 @@ CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points)
 
 float eval_cubic_spline(CubicSpline interp, float x)
 {
+    size_t index = 0;
+    float delta;
     if (x < interp.xs[0]) {
         printf("WARNING: interpolation function evaluated below x_min = %f, extrapolating with cubic spline (personally i think that's not a good idea).\n", interp.xs[0]);
-        float delta = (x - interp.xs[0]);
-        return interp.as[0] + interp.bs[0]*delta + interp.cs[0]*delta*delta + interp.ds[0]*delta*delta*delta;
+        delta = (x - interp.xs[0]);
     } else if (x > interp.xs[interp.n_points-1]) {
         printf("WARNING: interpolation function evaluated above x_max = %f, extrapolating with cubic spline (personally i think that's not a good idea).\n", interp.xs[interp.n_points-1]);
-        float delta = x - interp.xs[interp.n_points-1];
-        size_t index = interp.n_points - 2;
-        return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
+        delta = x - interp.xs[interp.n_points-1];
+        index = interp.n_points - 2;
     } else {
         // Find index
-        size_t index = 0;
         for (size_t i = 1; i < interp.n_points; i++) {
             if (x < interp.xs[i]) {
                 index = i-1;
                 break;
             }
         }
-        float delta = x - interp.xs[index];
-        return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
+        delta = x - interp.xs[index];
     }
-    return 0.0f;
+    return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
 }
 
 #endif // INTEGRATE_IMPLEMENTATION
