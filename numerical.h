@@ -47,7 +47,9 @@ float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `Lin
 CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
 
-// Linear system of equations
+// Linear algebra
+Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]);
+Matrix column_matrix(size_t n_rows, float *elements);
 Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim);
 
 #ifdef NUMERICAL_IMPLEMENTATION
@@ -223,35 +225,35 @@ float eval_cubic_spline(CubicSpline interp, float x)
     return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
 }
 
-Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float coefs[n_rows][n_cols])
+Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols])
 {
-    float *elements = malloc(n_rows*n_cols*sizeof(float));
-    if (elements == NULL) {
+    float *m_elements = malloc(n_rows*n_cols*sizeof(float));
+    if (m_elements == NULL) {
         fprintf(stderr, "ERROR: could not allocate Matrix");
         return (Matrix) {0};
     }
 
     for (size_t i = 0; i < n_rows; i++) {
         for (size_t j = 0; j < n_cols; j++) {
-            elements[i*n_cols + j] = coefs[i][j];
+            m_elements[i*n_cols + j] = elements[i][j];
         }
     }
-    return (Matrix) {.rows = n_rows, .cols = n_cols, .elements = elements};
+    return (Matrix) {.rows = n_rows, .cols = n_cols, .elements = m_elements};
 }
 
 #define matrix_at(M, i, j) M.elements[i*M.cols + j]
 
-Matrix column_matrix(size_t n_rows, float *xs)
+Matrix column_matrix(size_t n_rows, float *elements)
 {
-    float *elements = malloc(n_rows*sizeof(float));
-    if (elements == NULL) {
+    float *m_elements = malloc(n_rows*sizeof(float));
+    if (m_elements == NULL) {
         fprintf(stderr, "ERROR: could not allocate Matrix");
         return (Matrix) {0};
     }
     for (size_t i = 0; i < n_rows; i++) {
-        elements[i] = xs[i];
+        m_elements[i] = elements[i];
     }
-    return (Matrix) {.rows = n_rows, .cols = 1, .elements = elements};
+    return (Matrix) {.rows = n_rows, .cols = 1, .elements = m_elements};
 }
 
 // Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
