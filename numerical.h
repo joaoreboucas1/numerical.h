@@ -176,8 +176,6 @@ CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points)
 
 float eval_cubic_spline(CubicSpline interp, float x)
 {
-    printf("Some CubicSpline data:\n");
-    printf("xs[0] = %f, as[0] = %f\n", interp.xs[0], interp.as[0]);
     if (x < interp.xs[0]) {
         printf("WARNING: interpolation function evaluated below x_min = %f, extrapolating with cubic spline (personally i think that's not a good idea).\n", interp.xs[0]);
         float delta = (x - interp.xs[0]);
