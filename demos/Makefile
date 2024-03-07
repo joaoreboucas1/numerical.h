@@ -1,5 +1,5 @@
 LIBS = -lm
-CC = clang
+CC = gcc
 CFLAGS = -Wall -Wextra
 
 NUMERICAL = ../numerical.h
