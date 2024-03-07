@@ -1,3 +1,4 @@
 demos/demo_interp
 demos/demo_ode
 demos/demo_trapz
+demos/demo_linear_system
