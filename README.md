@@ -4,6 +4,7 @@
 **WARNING**: This is a personal project just for fun, so the public API is completely unstable. Use this library at your own risk.
 
 ## Implemented routines
+  - Solving systems of linear algebraic equations
   - Trapezoid rule for numerical integration
   - 1D ODE solver via Euler's algorithm
   - Linear interpolator and Cubic Spline interpolator

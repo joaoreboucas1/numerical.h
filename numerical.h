@@ -10,6 +10,7 @@ typedef struct {
     float *float_args;
 } Params;
 
+// Linear interpolator
 typedef struct {
     float *as;
     float *bs;
@@ -17,7 +18,7 @@ typedef struct {
     size_t n_points;
 } LinearInterp;
 
-// Following the implementation from https://en.wikipedia.org/wiki/Spline_(mathematics)#Algorithm_for_computing_natural_cubic_splines
+// Cubic Spline following the implementation from https://en.wikipedia.org/wiki/Spline_(mathematics)#Algorithm_for_computing_natural_cubic_splines
 typedef struct {
     float *as;
     float *bs;
@@ -26,6 +27,12 @@ typedef struct {
     float *xs;
     size_t n_points;
 } CubicSpline;
+
+typedef struct {
+    size_t rows;
+    size_t cols;
+    float *elements;
+} Matrix;
 
 // Numerical integration
 float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from a to b with N points
@@ -39,6 +46,9 @@ LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // 
 float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `LinearInterpolator` object at `x`
 CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
+
+// Linear system of equations
+Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim);
 
 #ifdef NUMERICAL_IMPLEMENTATION
 float trapezoid(float f(float), float a, float b, size_t N)
@@ -211,6 +221,102 @@ float eval_cubic_spline(CubicSpline interp, float x)
         delta = x - interp.xs[index];
     }
     return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
+}
+
+Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float coefs[n_rows][n_cols])
+{
+    float *elements = malloc(n_rows*n_cols*sizeof(float));
+    if (elements == NULL) {
+        fprintf(stderr, "ERROR: could not allocate Matrix");
+        return (Matrix) {0};
+    }
+
+    for (size_t i = 0; i < n_rows; i++) {
+        for (size_t j = 0; j < n_cols; j++) {
+            elements[i*n_cols + j] = coefs[i][j];
+        }
+    }
+    return (Matrix) {.rows = n_rows, .cols = n_cols, .elements = elements};
+}
+
+#define matrix_at(M, i, j) M.elements[i*M.cols + j]
+
+Matrix column_matrix(size_t n_rows, float *xs)
+{
+    float *elements = malloc(n_rows*sizeof(float));
+    if (elements == NULL) {
+        fprintf(stderr, "ERROR: could not allocate Matrix");
+        return (Matrix) {0};
+    }
+    for (size_t i = 0; i < n_rows; i++) {
+        elements[i] = xs[i];
+    }
+    return (Matrix) {.rows = n_rows, .cols = 1, .elements = elements};
+}
+
+// Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
+Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
+{
+    float *xs = malloc(n_dim*sizeof(float));
+    if (xs == NULL) {
+        fprintf(stderr, "ERROR: could not allocate solution for linear system\n");
+        return (Matrix) {0};
+    }
+    // Perform LU decomposition of as
+    float L[n_dim][n_dim];
+    float U[n_dim][n_dim];
+
+    for (size_t i = 0; i < n_dim; i++) {
+        for (size_t j = 0; j < n_dim; j++) {
+            L[i][j] = 0.0f;
+            U[i][j] = 0.0f;
+        }
+    }
+
+    for (size_t i = 0; i < n_dim; i++) {
+        L[i][i] = 1.0f;
+    }
+    
+    for (size_t j = 0; j < n_dim; j++) {
+        for (size_t i = 0; i <= j; i++) {
+            U[i][j] = matrix_at(A, i, j);
+            if (i > 0) {
+                for (size_t k = 0; k < i; k++) {
+                    U[i][j] -= L[i][k]*U[k][j];
+                }
+            }
+        }
+
+        for (size_t i = j; i < n_dim; i++) {
+            L[i][j] = matrix_at(A, i, j);
+            for (int k = 0; k < (int) j; k++) {
+                L[i][j] -= L[i][k]*U[k][j];
+            }
+            L[i][j] /= U[j][j];
+        }
+    }
+    // Solve L*U*X = B
+    float ys[n_dim];
+    ys[0] = matrix_at(B, 0, 0)/L[0][0];
+    for (size_t i = 1; i < n_dim; i++) {
+        ys[i] = matrix_at(B, i, 0);
+        if (i > 0) {
+            for (size_t j = 0; j < i; j++) {
+                ys[i] -= L[i][j]*ys[j];
+            }
+        }
+        ys[i] /= L[i][i];
+    }
+
+    xs[n_dim-1] = ys[n_dim-1]/U[n_dim-1][n_dim-1];
+    for (int i = n_dim-2; i >= 0; i--) {
+        xs[i] = ys[i];
+        for (size_t j = i+1; j < n_dim; j++) {
+            xs[i] -= U[i][j]*xs[j];
+        }
+        xs[i] /= U[i][i];
+    }
+    return (Matrix) {.rows = 1, .cols = B.cols, .elements = xs};
 }
 
 #endif // INTEGRATE_IMPLEMENTATION
