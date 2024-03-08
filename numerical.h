@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+// TODO: make free functions
+#define ALLOCATES // Tag for functions that allocate memory for their outputs
+
 // Parameters to be passed into functions for numerical integration
 typedef struct {
     int *int_args;
@@ -28,28 +31,31 @@ typedef struct {
     size_t n_points;
 } CubicSpline;
 
+// Matrix (with linear memory layout)
 typedef struct {
     size_t rows;
     size_t cols;
     float *elements;
 } Matrix;
+#define matrix_at(M, i, j) M.elements[(i)*M.cols + (j)]
 
 // Linear algebra
-Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
-Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
-Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
+ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
+ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
+ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
+ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
 
 // Numerical integration
 float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from a to b with N points
 float trapezoid_args(float f(float, Params), float a, float b, size_t N, Params params); // Integrate function with parameters
 
 // ODE integration
-float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps
+ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps
 
 // Interpolation
-LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
+ALLOCATES LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
 float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `LinearInterpolator` object at `x`
-CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
+ALLOCATES CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
 
 #ifdef NUMERICAL_IMPLEMENTATION
@@ -70,8 +76,6 @@ Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][
     return (Matrix) {.rows = n_rows, .cols = n_cols, .elements = m_elements};
 }
 
-#define matrix_at(M, i, j) M.elements[i*M.cols + j]
-
 Matrix column_matrix(size_t n_rows, float *elements)
 {
     float *m_elements = malloc(n_rows*sizeof(float));
@@ -85,6 +89,47 @@ Matrix column_matrix(size_t n_rows, float *elements)
     return (Matrix) {.rows = n_rows, .cols = 1, .elements = m_elements};
 }
 
+Matrix *LU_decomposition(Matrix A)
+{
+    if (A.rows != A.cols) {
+        fprintf(stderr, "ERROR: LU decomposition can only be performed for square matrices, found rows = %zu, cols = %zu\n", A.rows, A.cols);
+        return NULL;
+    }
+
+    float *L_elements = calloc(A.rows*A.cols, sizeof(float));
+    float *U_elements = calloc(A.rows*A.cols, sizeof(float));
+    if (L_elements == NULL || U_elements == NULL) {
+        fprintf(stderr, "ERROR: could not allocate elements for LU decomposition\n");
+        return NULL;
+    }
+    Matrix L = { .rows = A.rows, .cols = A.cols, .elements = L_elements };
+    Matrix U = { .rows = A.rows, .cols = A.cols, .elements = U_elements };
+
+    for (size_t i = 0; i < A.rows; i++) {
+        matrix_at(L, i, i) = 1.0f;
+    }
+    
+    for (size_t j = 0; j < A.rows; j++) {
+        for (size_t i = 0; i <= j; i++) {
+            matrix_at(U, i, j) = matrix_at(A, i, j);
+            if (i > 0) {
+                for (size_t k = 0; k < i; k++) {
+                    matrix_at(U, i, j) -= matrix_at(L, i, k)*matrix_at(U, k, j);
+                }
+            }
+        }
+
+        for (size_t i = j; i < A.rows; i++) {
+            matrix_at(L, i, j) = matrix_at(A, i, j);
+            for (int k = 0; k < (int) j; k++) {
+                matrix_at(L, i, j) -= matrix_at(L, i, k)*matrix_at(U, k, j);
+            }
+            matrix_at(L, i, j) /= matrix_at(U, j, j);
+        }
+    }
+    return (Matrix[2]) { L, U };
+}
+
 // Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
 Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
 {
@@ -93,59 +138,31 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
         fprintf(stderr, "ERROR: could not allocate solution for linear system\n");
         return (Matrix) {0};
     }
-    // Perform LU decomposition of as
-    float L[n_dim][n_dim];
-    float U[n_dim][n_dim];
 
-    for (size_t i = 0; i < n_dim; i++) {
-        for (size_t j = 0; j < n_dim; j++) {
-            L[i][j] = 0.0f;
-            U[i][j] = 0.0f;
-        }
-    }
+    Matrix L;
+    Matrix U;
+    Matrix *LU = LU_decomposition(A);
+    L = LU[0];
+    U = LU[1];
 
-    for (size_t i = 0; i < n_dim; i++) {
-        L[i][i] = 1.0f;
-    }
-    
-    for (size_t j = 0; j < n_dim; j++) {
-        for (size_t i = 0; i <= j; i++) {
-            U[i][j] = matrix_at(A, i, j);
-            if (i > 0) {
-                for (size_t k = 0; k < i; k++) {
-                    U[i][j] -= L[i][k]*U[k][j];
-                }
-            }
-        }
-
-        for (size_t i = j; i < n_dim; i++) {
-            L[i][j] = matrix_at(A, i, j);
-            for (int k = 0; k < (int) j; k++) {
-                L[i][j] -= L[i][k]*U[k][j];
-            }
-            L[i][j] /= U[j][j];
-        }
-    }
     // Solve L*U*X = B
     float ys[n_dim];
-    ys[0] = matrix_at(B, 0, 0)/L[0][0];
+    ys[0] = matrix_at(B, 0, 0)/matrix_at(L, 0, 0);
     for (size_t i = 1; i < n_dim; i++) {
         ys[i] = matrix_at(B, i, 0);
-        if (i > 0) {
-            for (size_t j = 0; j < i; j++) {
-                ys[i] -= L[i][j]*ys[j];
-            }
+        for (size_t j = 0; j < i; j++) {
+            ys[i] -= matrix_at(L, i, j)*ys[j];
         }
-        ys[i] /= L[i][i];
+        ys[i] /= matrix_at(L, i, i);
     }
 
-    xs[n_dim-1] = ys[n_dim-1]/U[n_dim-1][n_dim-1];
+    xs[n_dim-1] = ys[n_dim-1]/matrix_at(U, n_dim-1, n_dim-1);
     for (int i = n_dim-2; i >= 0; i--) {
         xs[i] = ys[i];
         for (size_t j = i+1; j < n_dim; j++) {
-            xs[i] -= U[i][j]*xs[j];
+            xs[i] -= matrix_at(U, i, j)*xs[j];
         }
-        xs[i] /= U[i][i];
+        xs[i] /= matrix_at(U, i, i);
     }
     return (Matrix) {.rows = 1, .cols = B.cols, .elements = xs};
 }
