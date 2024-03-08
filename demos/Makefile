@@ -19,4 +19,4 @@ demo_linear_system: $(NUMERICAL) demo_linear_system.c
 	$(CC) $(CFLAGS) demo_linear_system.c -o demo_linear_system $(LIBS)
 
 clean:
-	rm demo
+	rm demo_trapz demo_ode demo_interp demo_linear_system
