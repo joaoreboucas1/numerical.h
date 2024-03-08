@@ -44,6 +44,7 @@ ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float element
 ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
 ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
+void free_matrix(Matrix M); // Frees the dynamic storage of M
 
 // Numerical integration
 float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from a to b with N points
@@ -55,8 +56,10 @@ ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_f
 // Interpolation
 ALLOCATES LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
 float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `LinearInterpolator` object at `x`
+void free_linear_interpolator(LinearInterp interp); // Frees the storage of the `LinearInterpolator` (`xs` is not freed)
 ALLOCATES CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
+void free_cubic_spline(CubicSpline interp); // Frees the storage of the `CubicSpline` (`xs` is not freed)
 
 #ifdef NUMERICAL_IMPLEMENTATION
 
@@ -164,6 +167,8 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
         }
         xs[i] /= matrix_at(U, i, i);
     }
+    free_matrix(L);
+    free_matrix(U);
     return (Matrix) {.rows = 1, .cols = B.cols, .elements = xs};
 }
 
@@ -337,6 +342,25 @@ float eval_cubic_spline(CubicSpline interp, float x)
         delta = x - interp.xs[index];
     }
     return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
+}
+
+void free_matrix(Matrix M)
+{
+    free(M.elements);
+}
+
+void free_linear_interpolator(LinearInterp interp)
+{
+    free(interp.as);
+    free(interp.bs);
+}
+
+void free_cubic_spine(CubicSpline interp)
+{
+    free(interp.as);
+    free(interp.bs);
+    free(interp.cs);
+    free(interp.ds);
 }
 
 #endif // INTEGRATE_IMPLEMENTATION
