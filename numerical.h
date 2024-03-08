@@ -385,7 +385,7 @@ void free_linear_interpolator(LinearInterp interp)
     free(interp.bs);
 }
 
-void free_cubic_spine(CubicSpline interp)
+void free_cubic_spline(CubicSpline interp)
 {
     free(interp.as);
     free(interp.bs);
