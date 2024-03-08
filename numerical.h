@@ -4,8 +4,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-// TODO: make free functions
-#define ALLOCATES // Tag for functions that allocate memory for their outputs
+#define ALLOCATES // Tag for functions that allocate memory for their outputs, so the user knows they need to free the outputs
 
 // Parameters to be passed into functions for numerical integration
 typedef struct {
@@ -44,6 +43,7 @@ ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float element
 ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
 ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
+float determinant(Matrix A); // Computes the determinant of a `Matrix` A
 void free_matrix(Matrix M); // Frees the dynamic storage of M
 
 // Numerical integration
@@ -92,6 +92,7 @@ Matrix column_matrix(size_t n_rows, float *elements)
     return (Matrix) {.rows = n_rows, .cols = 1, .elements = m_elements};
 }
 
+// TODO: partial pivoting
 Matrix *LU_decomposition(Matrix A)
 {
     if (A.rows != A.cols) {
@@ -148,6 +149,16 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
     L = LU[0];
     U = LU[1];
 
+    for (size_t i = 0; i < U.cols; i++) {
+        if (matrix_at(U, i, i) == 0.0f) {
+            fprintf(stderr, "ERROR: coefficient matrix of linear system is singular, system cannot be solved\n");
+            free_matrix(L);
+            free_matrix(U);
+            free(xs);
+            return (Matrix) {0};
+        }
+    }
+
     // Solve L*U*X = B
     float ys[n_dim];
     ys[0] = matrix_at(B, 0, 0)/matrix_at(L, 0, 0);
@@ -170,6 +181,25 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
     free_matrix(L);
     free_matrix(U);
     return (Matrix) {.rows = 1, .cols = B.cols, .elements = xs};
+}
+
+float determinant(Matrix A)
+{
+    if (A.rows != A.cols) {
+        fprintf(stderr, "ERROR: determinant is only defined for square matrices, found rows = %zu, cols = %zu\n", A.rows, A.cols);
+        return 0.0f;
+    }
+    Matrix L;
+    Matrix U;
+    Matrix *LU = LU_decomposition(A);
+    L = LU[0];
+    U = LU[1];
+    float result = 1;
+    for (size_t i = 0; i < U.rows; i++) {
+        result *= matrix_at(U, i, i);
+    }
+    return result;
+
 }
 
 float trapezoid(float f(float), float a, float b, size_t N)
