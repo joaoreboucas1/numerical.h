@@ -41,7 +41,10 @@ typedef struct {
 // Linear algebra
 ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
 ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
+ALLOCATES Matrix zero_matrix(size_t n_rows, size_t n_cols); // Allocates a `Matrix` object with all elements zero
+ALLOCATES Matrix identity(size_t n_rows); // Allocates a new `Matrix` object equivalent to the NxN identity 
 ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
+ALLOCATES Matrix inverse_matrix(Matrix A); // Returns a new `Matrix` which is the inverse of the input matrix A
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
 float determinant(Matrix A); // Computes the determinant of a `Matrix` A
 void free_matrix(Matrix M); // Frees the dynamic storage of M
@@ -92,6 +95,25 @@ Matrix column_matrix(size_t n_rows, float *elements)
     return (Matrix) {.rows = n_rows, .cols = 1, .elements = m_elements};
 }
 
+Matrix zero_matrix(size_t n_rows, size_t n_cols)
+{
+    float *elements = calloc(n_rows*n_cols, sizeof(float));
+    if (elements == NULL) {
+        fprintf(stderr, "ERROR: could not allocate elements for zero matrix of size %zu x %zu\n", n_rows, n_cols);
+        return (Matrix) {0};
+    }
+    return (Matrix) { .rows = n_rows, .cols = n_cols, .elements = elements };
+}
+
+Matrix identity(size_t n_rows)
+{
+    Matrix M = zero_matrix(n_rows, n_rows);
+    for (size_t i = 0; i < n_rows; i++) {
+        matrix_at(M, i, i) = 1.0f;
+    }
+    return M;
+}
+
 // TODO: partial pivoting
 Matrix *LU_decomposition(Matrix A)
 {
@@ -100,14 +122,8 @@ Matrix *LU_decomposition(Matrix A)
         return NULL;
     }
 
-    float *L_elements = calloc(A.rows*A.cols, sizeof(float));
-    float *U_elements = calloc(A.rows*A.cols, sizeof(float));
-    if (L_elements == NULL || U_elements == NULL) {
-        fprintf(stderr, "ERROR: could not allocate elements for LU decomposition\n");
-        return NULL;
-    }
-    Matrix L = { .rows = A.rows, .cols = A.cols, .elements = L_elements };
-    Matrix U = { .rows = A.rows, .cols = A.cols, .elements = U_elements };
+    Matrix L = zero_matrix(A.rows, A.cols);
+    Matrix U = zero_matrix(A.rows, A.cols);
 
     for (size_t i = 0; i < A.rows; i++) {
         matrix_at(L, i, i) = 1.0f;
@@ -134,6 +150,92 @@ Matrix *LU_decomposition(Matrix A)
     return (Matrix[2]) { L, U };
 }
 
+void print_matrix(Matrix A, const char* matrix_name)
+{
+    printf("%s = \n", matrix_name);
+    for (size_t i = 0; i < A.rows; i++) {
+        for (size_t j = 0; j < A.cols; j++) {
+            printf("%f ", matrix_at(A, i, j));
+        }
+        printf("\n");
+    }
+}
+
+// Inspired by https://home.cc.umanitoba.ca/~farhadi/Math2120/Inverse%20Using%20LU%20decomposition.pdf
+Matrix inverse_matrix(Matrix A)
+{
+    Matrix *LU = LU_decomposition(A);
+    Matrix L = LU[0];
+    Matrix U = LU[1];
+
+    // Invert U
+    Matrix U_inv = identity(U.rows);
+    for (size_t j = U.cols; j-- > 0;) {
+        for (size_t i = j+1; i-- > 0;) {
+            if (i == j) {
+                if (matrix_at(U, i, j) == 0.0f) {
+                    fprintf(stderr, "ERROR: could not invert matrix A because it's singular\n");
+                    free_matrix(L);
+                    free_matrix(U);
+                    free_matrix(U_inv);
+                    return (Matrix) {0};
+                }
+                for (size_t k = 0; k < U.cols; k++) {
+                    matrix_at(U_inv, i, k) /= matrix_at(U, i, j);
+                }
+                for (size_t k = 0; k < U.cols; k++) {
+                    matrix_at(U, i, k) /= matrix_at(U, i, j);
+                }
+            } else {
+                for (size_t k = 0; k < A.cols; k++) {
+                    matrix_at(U_inv, i, k) -= matrix_at(U, i, j)*matrix_at(U_inv, j, k);
+                }
+                for (size_t k = 0; k < A.cols; k++) {
+                    matrix_at(U, i, k) -= matrix_at(U, i, j)*matrix_at(U, j, k);
+                }
+            }
+        }
+    }
+    
+    // Invert L
+    Matrix L_inv = identity(L.rows);
+    for (size_t j = 0; j < L.cols; j++) {
+        for (size_t i = j; i < L.rows; i++) {
+            if (i == j) {
+                for (size_t k = 0; k < U.cols; k++) {
+                    matrix_at(L_inv, i, k) /= matrix_at(L, i, j);
+                }
+                for (size_t k = 0; k < U.cols; k++) {
+                    matrix_at(L, i, k) /= matrix_at(L, i, j);
+                }
+            } else {
+                for (size_t k = 0; k < A.cols; k++) {
+                    matrix_at(L_inv, i, k) -= matrix_at(L, i, j)*matrix_at(L_inv, j, k);
+                }
+                for (size_t k = 0; k < A.cols; k++) {
+                    matrix_at(L, i, k) -= matrix_at(L, i, j)*matrix_at(L, j, k);
+                }
+            }
+        }
+    }
+
+    // print_matrix(L, "L");
+
+    // Multiply (U^-1)(L^-1)
+    Matrix A_inv = zero_matrix(A.rows, A.cols);
+    for (size_t i = 0; i < A.rows; i++) {
+        for (size_t j = 0; j < A.cols; j++) {
+            for (size_t k = 0; k < A.cols; k++) {
+                matrix_at(A_inv, i, j) += matrix_at(U_inv, i, k)*matrix_at(L_inv, k, j);
+            }
+        }
+    }
+    free_matrix(L);
+    free_matrix(U);
+    free_matrix(U_inv);
+    return A_inv;
+}
+
 // Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
 Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
 {
@@ -143,11 +245,9 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
         return (Matrix) {0};
     }
 
-    Matrix L;
-    Matrix U;
     Matrix *LU = LU_decomposition(A);
-    L = LU[0];
-    U = LU[1];
+    Matrix L = LU[0];
+    Matrix U = LU[1];
 
     for (size_t i = 0; i < U.cols; i++) {
         if (matrix_at(U, i, i) == 0.0f) {
@@ -189,15 +289,15 @@ float determinant(Matrix A)
         fprintf(stderr, "ERROR: determinant is only defined for square matrices, found rows = %zu, cols = %zu\n", A.rows, A.cols);
         return 0.0f;
     }
-    Matrix L;
-    Matrix U;
     Matrix *LU = LU_decomposition(A);
-    L = LU[0];
-    U = LU[1];
+    Matrix U = LU[1];
+
     float result = 1;
     for (size_t i = 0; i < U.rows; i++) {
         result *= matrix_at(U, i, i);
     }
+    free_matrix(U);
+    free_matrix(LU[0]);
     return result;
 
 }

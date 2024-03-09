@@ -5,7 +5,7 @@
 
 ## Implemented routines
   - Solving systems of linear algebraic equations
-  - Linear algebra utilities: determinant, LU decomposition
+  - Linear algebra utilities: determinant, LU decomposition, inverse matrix
   - Trapezoid rule for numerical integration
   - 1D ODE solver via Euler's algorithm
   - Linear interpolator and Cubic Spline interpolator
