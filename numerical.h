@@ -42,6 +42,7 @@ ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float element
 ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
 ALLOCATES Matrix zero_matrix(size_t n_rows, size_t n_cols); // Allocates a `Matrix` object with all elements zero
 ALLOCATES Matrix identity(size_t n_rows); // Allocates a new `Matrix` object equivalent to the NxN identity 
+ALLOCATES Matrix matrix_multiplication(Matrix A, Matrix B); // Performs matrix multiplication and returns a new `Matrix` M = AB
 ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 ALLOCATES Matrix inverse_matrix(Matrix A); // Returns a new `Matrix` which is the inverse of the input matrix A
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
@@ -114,6 +115,23 @@ Matrix identity(size_t n_rows)
     Matrix M = zero_matrix(n_rows, n_rows);
     for (size_t i = 0; i < n_rows; i++) {
         matrix_at(M, i, i) = 1.0f;
+    }
+    return M;
+}
+
+Matrix matrix_multiplication(Matrix A, Matrix B) 
+{
+    if (A.cols != B.rows) {
+        fprintf(stderr, "ERROR: cannot perform matrix multiplication because the number of rows of the first matrix (%zu) is different than the number of columns of the second matrix (%zu)\n", A.cols, B.rows);
+        return (Matrix) {0};
+    }
+    Matrix M = zero_matrix(A.rows, B.cols);
+    for (size_t i = 0; i < M.rows; i++) {
+        for (size_t j = 0; j < M.cols; j++) {
+            for (size_t k = 0; k < A.rows; k++) {
+                matrix_at(M, i, j) += matrix_at(A, i, k)*matrix_at(B, k, j);
+            }
+        }
     }
     return M;
 }
@@ -243,11 +261,12 @@ Matrix inverse_matrix(Matrix A)
 // Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
 Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
 {
-    float *xs = malloc(n_dim*sizeof(float));
-    if (xs == NULL) {
-        fprintf(stderr, "ERROR: could not allocate solution for linear system\n");
+    if (B.cols != 1) {
+        fprintf(stderr, "ERROR: Matrix B must be column matrix, it has %zu rows and %zu cols\n", B.rows, B.cols);
         return (Matrix) {0};
     }
+
+    Matrix X = zero_matrix(B.rows, 1);
 
     Matrix *LU = LU_decomposition(A);
     Matrix L = LU[0];
@@ -258,7 +277,7 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
             fprintf(stderr, "ERROR: coefficient matrix of linear system is singular, system cannot be solved\n");
             free_matrix(L);
             free_matrix(U);
-            free(xs);
+            free_matrix(X);
             return (Matrix) {0};
         }
     }
@@ -274,17 +293,17 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
         ys[i] /= matrix_at(L, i, i);
     }
 
-    xs[n_dim-1] = ys[n_dim-1]/matrix_at(U, n_dim-1, n_dim-1);
+    matrix_at(X, n_dim-1, 0) = ys[n_dim-1]/matrix_at(U, n_dim-1, n_dim-1);
     for (int i = n_dim-2; i >= 0; i--) {
-        xs[i] = ys[i];
+        matrix_at(X, i, 0) = ys[i];
         for (size_t j = i+1; j < n_dim; j++) {
-            xs[i] -= matrix_at(U, i, j)*xs[j];
+            matrix_at(X, i, 0) -= matrix_at(U, i, j)*matrix_at(X, j, 0);
         }
-        xs[i] /= matrix_at(U, i, i);
+        matrix_at(X, i, 0) /= matrix_at(U, i, i);
     }
     free_matrix(L);
     free_matrix(U);
-    return (Matrix) {.rows = 1, .cols = B.cols, .elements = xs};
+    return X;
 }
 
 float determinant(Matrix A)
