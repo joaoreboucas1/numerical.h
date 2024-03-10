@@ -8,6 +8,7 @@
   - Numerical integration: trapezoid rule for functions of one variable (that may accept additional parameters)
   - ODEs: 1D ODE solver via Euler's algorithm
   - Interpolation: Linear interpolator and Cubic Spline interpolator
+  - Root finding: secant method for functions of a single variable
 
 ## Examples
 We provide C examples for each numerical routine in the `demos/` folder. We also provide a `Makefile` that builds executables for demonstration. To build the demos, simply go to the `demos/` folder and use `make`:

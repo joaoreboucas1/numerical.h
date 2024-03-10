@@ -2,7 +2,6 @@
 #define INTEGRATE_H_
 
 #include <stddef.h>
-#include <stdlib.h>
 
 #define ALLOCATES // Tag for functions that allocate memory for their outputs, so the user knows they need to free the outputs
 
@@ -64,7 +63,12 @@ ALLOCATES CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); /
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
 void free_cubic_spline(CubicSpline interp); // Frees the storage of the `CubicSpline` (`xs` is not freed)
 
+// Root-finding
+float find_root(float f(float), float x_min, float x_max, size_t max_iters, float tol); // Finds a solution for the equation f(x) = 0 between x_min and x_max by secant rule. Iterates until abs(f(x)) < tol and by a maximum number of iterations
+
 #ifdef NUMERICAL_IMPLEMENTATION
+#include <stdlib.h>
+#include <math.h>
 
 Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols])
 {
@@ -472,6 +476,40 @@ float eval_cubic_spline(CubicSpline interp, float x)
         delta = x - interp.xs[index];
     }
     return interp.as[index] + interp.bs[index]*delta + interp.cs[index]*delta*delta + interp.ds[index]*delta*delta*delta;
+}
+
+float find_root(float f(float), float x_min, float x_max, size_t max_iters, float tol)
+{
+    float y_min = f(x_min);
+    float y_max = f(x_max);
+
+    float x_min_in = x_min;
+    float x_max_in = x_max;
+
+    if (copysign(1, y_min*y_max) > 0.0f) {
+        fprintf(stderr, "ERROR: root finding between x = %f and x = %f expected to have different signs of f(x), found f(%f) = %f and f(%f) = %f, returning zero.\n", x_min, x_max, x_min, y_min, x_max, y_max);
+        return 0.0f;
+    }
+
+    float root;
+    float y_root;
+    size_t iters = 0;
+    do {
+        float a = (y_max - y_min)/(x_max - x_min);
+        float b = y_min - a*x_min;
+        root = -b/a;
+        y_root = f(root);
+        if (copysign(1, y_root*y_min) > 0.0f) {
+            y_min = y_root;
+            x_min = root;
+        } else {
+            y_max = y_root;
+            x_max = root;
+        }
+    } while (iters++ < max_iters && fabsf(f(root)) > tol);
+    
+    if (fabsf(f(root)) > tol) printf("WARNING: root finding between %f and %f did not achieve desired tolerance %f\n", x_min_in, x_max_in, tol);
+    return root;
 }
 
 void free_matrix(Matrix M)
