@@ -20,7 +20,6 @@ float h(float x)
     return expf(-x*x);
 }
 
-
 // Function with additional parameters
 float j(float x, Params p)
 {

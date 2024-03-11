@@ -2,6 +2,7 @@
 #define INTEGRATE_H_
 
 #include <stddef.h>
+#include <complex.h>
 
 #define ALLOCATES // Tag for functions that allocate memory for their outputs, so the user knows they need to free the outputs
 
@@ -67,9 +68,13 @@ void free_cubic_spline(CubicSpline interp); // Frees the storage of the `CubicSp
 // Root-finding
 float find_root(float f(float), float x_min, float x_max, size_t max_iters, float tol); // Finds a solution for the equation f(x) = 0 between x_min and x_max by secant rule. Iterates until abs(f(x)) < tol and by a maximum number of iterations
 
+// FFT
+ALLOCATES float complex *fft(float complex *in, int n); // Returns the fft of the input signal in (as float complex)
+
 #ifdef NUMERICAL_IMPLEMENTATION
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols])
 {
@@ -529,6 +534,39 @@ float find_root(float f(float), float x_min, float x_max, size_t max_iters, floa
     
     if (fabsf(f(root)) > tol) printf("WARNING: root finding between %f and %f did not achieve desired tolerance %f\n", x_min_in, x_max_in, tol);
     return root;
+}
+
+// Blatantly copy-pasted from https://rosettacode.org/wiki/Fast_Fourier_transform#C
+void _fft(float complex *buf, float complex *aux, int n, int step)
+{
+	if (step < n) {
+		_fft(aux, buf, n, step * 2);
+		_fft(aux + step, buf + step, n, step * 2);
+ 
+		for (int i = 0; i < n; i += 2 * step) {
+			float complex t = cexp(-I * M_PI * i / n) * aux[i + step];
+			buf[i / 2]     = aux[i] + t;
+			buf[(i + n)/2] = aux[i] - t;
+		}
+	}
+}
+
+// Blatantly copy-pasted from https://rosettacode.org/wiki/Fast_Fourier_transform#C
+float complex *fft(float complex *in, int n)
+{
+
+	float complex aux[n];
+    float complex *out = malloc(n*sizeof(float complex));
+    if (out == NULL) {
+        fprintf(stderr, "ERROR: could not allocate memory for FFT\n");
+        return NULL;
+    }
+    
+    memcpy(aux, in, n*sizeof(float complex));
+    memcpy(out, in, n*sizeof(float complex));
+ 
+	_fft(out, aux, n, 1);
+    return out;
 }
 
 void free_matrix(Matrix M)
