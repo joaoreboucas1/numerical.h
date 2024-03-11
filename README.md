@@ -9,6 +9,7 @@
   - ODEs: 1D ODE solver via Euler's algorithm
   - Interpolation: Linear interpolator and Cubic Spline interpolator
   - Root finding: secant method for functions of a single variable
+  - Optimization: minimization of functions of a single variable using gradient descent with finite difference
   - FFT
 
 ## Examples

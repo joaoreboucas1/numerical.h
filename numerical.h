@@ -68,6 +68,9 @@ void free_cubic_spline(CubicSpline interp); // Frees the storage of the `CubicSp
 // Root-finding
 float find_root(float f(float), float x_min, float x_max, size_t max_iters, float tol); // Finds a solution for the equation f(x) = 0 between x_min and x_max by secant rule. Iterates until abs(f(x)) < tol and by a maximum number of iterations
 
+// Minimization
+float minimize(float f(float), float x, float rate, size_t max_iters); // Finds a local minimum of the function f(x) using gradient descent and finite difference. Control descent rate and max number of iterations.
+
 // FFT
 ALLOCATES float complex *fft(float complex *in, int n); // Returns the fft of the input signal in (as float complex)
 
@@ -534,6 +537,21 @@ float find_root(float f(float), float x_min, float x_max, size_t max_iters, floa
     
     if (fabsf(f(root)) > tol) printf("WARNING: root finding between %f and %f did not achieve desired tolerance %f\n", x_min_in, x_max_in, tol);
     return root;
+}
+
+// Gradient descent with finite difference
+float minimize(float f(float), float x, float rate, size_t max_iters)
+{
+    float x_min = x;
+    float derivative;
+    static const float tol = 1e-5;
+    static const float eps = 1e-4;
+    for (size_t i = 0; i < max_iters; i++) {
+        derivative = (f(x_min + eps) - f(x_min))/eps;
+        if (fabsf(derivative*rate) < fabsf(tol*x_min)) break;
+        x_min -= derivative*rate;
+    }
+    return x_min;
 }
 
 // Blatantly copy-pasted from https://rosettacode.org/wiki/Fast_Fourier_transform#C

@@ -4,7 +4,7 @@ CFLAGS = -Wall -Wextra -ggdb
 
 NUMERICAL = ../numerical.h
 
-DEMOS := demo_trapz demo_ode demo_interp demo_linear_system demo_inverse_matrix demo_root_find demo_fft
+DEMOS := demo_trapz demo_ode demo_interp demo_linear_system demo_inverse_matrix demo_root_find demo_fft demo_opt
 all: $(DEMOS)
 
 $(DEMOS): %: %.c $(NUMERICAL)
