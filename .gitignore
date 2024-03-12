@@ -1,6 +1,7 @@
 .vscode/
 demos/demo_trapz
 demos/demo_ode
+demos/demo_ode2d
 demos/demo_interp
 demos/demo_linear_system
 demos/demo_inverse_matrix

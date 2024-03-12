@@ -55,7 +55,8 @@ float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from
 float trapezoid_args(float f(float, Params), float a, float b, size_t N, Params params); // Integrate function with parameters
 
 // ODE integration
-ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps
+ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps via Euler's algorithm
+ALLOCATES float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim); // Solve N-dimensional ODE y'(y, x) = f(y, x) (where y is `n_dim`-sized array) with initial conditions (x_0, y_0) and n_steps steps via Euler's algorithm. The user must allocate memory for the derivative array and pass the pointer into the function y_prime (so the user must manage the memory for the derivatives)
 
 // Interpolation
 ALLOCATES LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
@@ -374,6 +375,38 @@ float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size
     }
 
     return ys;
+}
+
+float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim)
+{
+    float **result = (float**) malloc((n_steps+1)*sizeof(float*));
+    if (result == NULL) {
+        fprintf(stderr, "ERROR: could not allocate result of %zu dimensional ODE with %zu\n", n_dim, n_steps);
+        return NULL;
+    }
+    for (size_t i = 0; i < n_steps+1; i++) {
+        result[i] = (float*) malloc(n_dim*sizeof(float));
+        if (result[i] == NULL) {
+            fprintf(stderr, "ERROR: could not allocate result of %zu dimensional ODE with %zu\n", n_dim, n_steps);
+            return NULL;
+        }
+    }
+
+    for (size_t i = 0; i < n_dim; i++) {
+        result[0][i] = y_initial[i];
+    }
+
+    float x;
+    const float dx = (x_final - x_initial)/n_steps;
+    float y_primes[n_dim];
+    for (size_t i = 0; i < n_steps; i++) {
+        x = x_initial + i*dx;
+        y_prime(result[i], x, y_primes);
+        for (size_t j = 0; j < n_dim; j++) {
+            result[i+1][j] = result[i][j] + y_primes[j]*dx;
+        }
+    }
+    return result;
 }
 
 LinearInterp get_linear_interpolator(float *xs, float *ys, size_t n_points)
