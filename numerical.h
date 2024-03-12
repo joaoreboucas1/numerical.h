@@ -56,7 +56,7 @@ float trapezoid_args(float f(float, Params), float a, float b, size_t N, Params 
 
 // ODE integration
 ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps via Euler's algorithm
-ALLOCATES float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim); // Solve N-dimensional ODE y'(y, x) = f(y, x) (where y is `n_dim`-sized array) with initial conditions (x_0, y_0) and n_steps steps via Euler's algorithm. The user must allocate memory for the derivative array and pass the pointer into the function y_prime (so the user must manage the memory for the derivatives)
+ALLOCATES float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim); // Solve N-dimensional ODE y'(y, x) = f(y, x) (where y is `n_dim`-sized array) with initial conditions (x_0, y_0) and n_steps steps via Euler's algorithm. The user must allocate memory for the derivative array and pass the pointer into the function `y_prime` (so the user must manage the memory for the derivatives)
 
 // Interpolation
 ALLOCATES LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
