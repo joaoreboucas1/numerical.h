@@ -8,6 +8,7 @@ void y_prime(float *y, float x, float* result)
     // Equivalent to the system:
     // x' = y
     // y' = -x
+    (void) x;
     result[0] = y[1];
     result[1] = -y[0];
 }

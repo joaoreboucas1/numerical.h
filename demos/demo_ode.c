@@ -7,6 +7,7 @@
 
 float y_prime(float y, float x)
 {
+    (void) x;
     return y;
 }
 
