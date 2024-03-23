@@ -12,7 +12,15 @@ ALLOCATES Matrix* QR_decomposition(Matrix M)
     Matrix u = zero_matrix(M.rows, M.cols);
     Matrix e = zero_matrix(M.rows, M.cols);
 
-    for (size_t j = 0; j < M.cols; j++) matrix_at(u, j, 0) = matrix_at(M, j, 0);
+    float norm_u0 = 0.0f;
+    for (size_t i = 0; i < M.rows; i++) {
+        norm_u0 += matrix_at(M, i, 0)*matrix_at(M, i, 0);
+    }
+    norm_u0 = sqrtf(norm_u0);
+    for (size_t i = 0; i < M.rows; i++) {
+        matrix_at(u, i, 0) = matrix_at(M, i, 0);
+        matrix_at(e, i, 0) = matrix_at(M, i, 0)/norm_u0;
+    }
 
     for (size_t j = 1; j < M.cols; j++) {
         float norm_uj = 0.0f;
@@ -21,8 +29,8 @@ ALLOCATES Matrix* QR_decomposition(Matrix M)
         for (size_t k = 0; k < j; k++) {
             float dot_aj_uk = 0.0f;
             float dot_uk_uk = 0.0f;
-            for (size_t n = 0; n < M.cols; n++) dot_aj_uk += matrix_at(M, n, j)*matrix_at(u, n, j);
-            for (size_t n = 0; n < M.cols; n++) dot_uk_uk += matrix_at(u, n, j)*matrix_at(u, n, j);
+            for (size_t n = 0; n < M.cols; n++) dot_aj_uk += matrix_at(M, n, j)*matrix_at(u, n, k);
+            for (size_t n = 0; n < M.cols; n++) dot_uk_uk += matrix_at(u, n, k)*matrix_at(u, n, k);
             for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, j) -= dot_aj_uk/dot_uk_uk*matrix_at(u, i, k);
         }
         for (size_t i = 0; i < M.cols; i++) norm_uj += matrix_at(u, i, j)*matrix_at(u, i, j);
@@ -95,8 +103,10 @@ ALLOCATES float* find_eigenvalues(Matrix M)
         QR = QR_decomposition(M_next);
         Q = QR[0];
         R = QR[1];
-        M_prev = M_next;
+        print_matrix(M_next, "M");
+        print_matrix(matrix_multiplication(Q, R), "QR");
         M_next = matrix_multiplication(R, Q);
+        M_prev = M_next;
         if (is_triangular(M_next)) {
             solved = true;
             break;
