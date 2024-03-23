@@ -52,12 +52,13 @@ ALLOCATES Matrix* QR_decomposition(Matrix M)
     return (Matrix[2]) { e, R };
 }
 
+#define TRIANGULAR_TOL 1e-10
 bool is_lower_triangular(Matrix M)
 {
     if (M.rows != M.cols) return false;
-    for (size_t i = 0; i < M.rows; i++) {
+    for (size_t i = 1; i < M.rows; i++) {
         for (size_t j = 0; j < i; j++) {
-            if (matrix_at(M, i, j) != 0.0f) return false; // TODO: is this a good idea?
+            if (fabsf(matrix_at(M, i, j)) > TRIANGULAR_TOL) return false;
         }
     }
     return true;
@@ -68,7 +69,7 @@ bool is_upper_triangular(Matrix M)
     if (M.rows != M.cols) return false;
     for (size_t i = 0; i < M.rows; i++) {
         for (size_t j = i+1; j < M.cols; j++) {
-            if (matrix_at(M, i, j) != 0.0f) return false; // TODO: is this a good idea?
+            if (fabsf(matrix_at(M, i, j)) > TRIANGULAR_TOL) return false;
         }
     }
     return true;
@@ -82,8 +83,8 @@ bool is_triangular(Matrix M)
 ALLOCATES float* find_eigenvalues(Matrix M)
 {
     bool solved;
-    Matrix *QR;
-    Matrix Q, R, M_next, M_prev;
+    Matrix *QR, *M_current;
+    Matrix Q, R, M_next;
 
     if (M.rows != M.cols) {
         fprintf(stderr, "ERROR: finding eigenvalue of non-square matrix with %zu rows and %zu cols\n", M.rows, M.cols);
@@ -98,29 +99,28 @@ ALLOCATES float* find_eigenvalues(Matrix M)
 
     size_t iters = 0;
     const size_t max_iters = 10;
-    M_next = M;
+    M_current = &M;
     do {
-        QR = QR_decomposition(M_next);
+        QR = QR_decomposition(*M_current);
         Q = QR[0];
         R = QR[1];
-        print_matrix(M_next, "M");
-        print_matrix(matrix_multiplication(Q, R), "QR");
         M_next = matrix_multiplication(R, Q);
-        M_prev = M_next;
+        print_matrix(M_next, "M");
         if (is_triangular(M_next)) {
             solved = true;
             break;
         } else {
-            if (iters > 0) free_matrix(M_prev);
+            if (iters > 0) free_matrix(*M_current);
             free_matrix(R);
             free_matrix(Q);
+            M_current = &M_next;
         }
         iters += 1;
     } while (iters < max_iters);
 
     if (solved) {
         for (size_t i = 0; i < M.cols; i++) {
-            eigenvalues[i] = matrix_at(M_next, i, i);
+            eigenvalues[i] = matrix_at((M_next), i, i);
         }
         free_matrix(Q);
         free_matrix(R);
