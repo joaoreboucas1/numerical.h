@@ -8,3 +8,4 @@ demos/demo_inverse_matrix
 demos/demo_root_find
 demos/demo_fft
 demos/demo_opt
+demos/demo_eigens

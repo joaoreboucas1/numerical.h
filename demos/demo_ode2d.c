@@ -15,7 +15,6 @@ void y_prime(float *y, float x, float* result)
 
 int main()
 {
-    printf("Hello, world!\n");
     float y_initial[2] = { 1.0f, 0.0f };
     const size_t n_steps = 100;
     float **result = odesolve_nd(y_prime, y_initial, 0.0f, 5.0f, n_steps, 2);
