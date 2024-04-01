@@ -2,6 +2,7 @@
 #define INTEGRATE_H_
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <complex.h>
 
 #define ALLOCATES // Tag for functions that allocate memory for their outputs, so the user knows they need to free the outputs
@@ -36,14 +37,19 @@ typedef struct {
     size_t cols;
     float *elements;
 } Matrix;
-#define matrix_at(M, i, j) M.elements[(i)*M.cols + (j)]
+#define matrix_at(M, i, j) (M).elements[(i)*(M).cols + (j)]
 
 // Linear algebra
 ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
 ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
 ALLOCATES Matrix zero_matrix(size_t n_rows, size_t n_cols); // Allocates a `Matrix` object with all elements zero
 ALLOCATES Matrix identity(size_t n_rows); // Allocates a new `Matrix` object equivalent to the NxN identity 
-ALLOCATES Matrix matrix_multiplication(Matrix A, Matrix B); // Performs matrix multiplication and returns a new `Matrix` M = AB
+void matrix_multiplication(Matrix A, Matrix B, Matrix *AB); // Performs matrix multiplication and returns a new `Matrix` M = AB
+bool is_upper_triangular(Matrix A); // Checks if matrix M is upper triangular
+bool is_lower_triangular(Matrix A); // Checks if matrix M is lower triangular
+bool is_triangular(Matrix A); // Checks if matrix M is triangular
+void QR_decomposition(Matrix M, Matrix *Q, Matrix *R); // Performs QR decomposition of the matrix M, saving the results into Q and R
+ALLOCATES float *find_eigenvalues(Matrix A); // Finds the eigenvalues of the matrix A
 ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 ALLOCATES Matrix inverse_matrix(Matrix A); // Returns a new `Matrix` which is the inverse of the input matrix A
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
@@ -128,21 +134,153 @@ Matrix identity(size_t n_rows)
     return M;
 }
 
-Matrix matrix_multiplication(Matrix A, Matrix B) 
+void matrix_multiplication(Matrix A, Matrix B, Matrix *AB) 
 {
     if (A.cols != B.rows) {
         fprintf(stderr, "ERROR: cannot perform matrix multiplication because the number of rows of the first matrix (%zu) is different than the number of columns of the second matrix (%zu)\n", A.cols, B.rows);
-        return (Matrix) {0};
+        return;
     }
-    Matrix M = zero_matrix(A.rows, B.cols);
-    for (size_t i = 0; i < M.rows; i++) {
-        for (size_t j = 0; j < M.cols; j++) {
+
+    if (AB->rows != A.rows || AB->cols != B.cols) {
+        fprintf(stderr, "ERROR: cannot perform matrix multiplication because the number of rows of the first matrix (%zu) is different than the number of columns of the second matrix (%zu)\n", A.cols, B.rows);
+        return;
+    }
+
+    for (size_t i = 0; i < AB->rows*AB->cols; i++) AB->elements[i] = 0.0f;
+
+    for (size_t i = 0; i < AB->rows; i++) {
+        for (size_t j = 0; j < AB->cols; j++) {
             for (size_t k = 0; k < A.rows; k++) {
-                matrix_at(M, i, j) += matrix_at(A, i, k)*matrix_at(B, k, j);
+                matrix_at(*AB, i, j) += matrix_at(A, i, k)*matrix_at(B, k, j);
             }
         }
     }
-    return M;
+}
+
+void QR_decomposition(Matrix M, Matrix *Q, Matrix *R)
+{
+    Matrix u = zero_matrix(M.rows, M.cols);
+
+    for (size_t i = 0; i < Q->rows*Q->cols; i++) {
+        Q->elements[i] = 0.0f;
+        R->elements[i] = 0.0f;
+    }
+
+    float norm_u0 = 0.0f;
+    for (size_t i = 0; i < M.rows; i++) {
+        norm_u0 += matrix_at(M, i, 0)*matrix_at(M, i, 0);
+    }
+    norm_u0 = sqrtf(norm_u0);
+
+    for (size_t i = 0; i < M.rows; i++) {
+        matrix_at(u, i, 0) = matrix_at(M, i, 0);
+        matrix_at(*Q, i, 0) = matrix_at(M, i, 0)/norm_u0;
+    }
+
+    for (size_t k = 1; k < M.cols; k++) {
+        for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, k) = matrix_at(M, i, k);
+        
+        for (size_t j = 0; j < k; j++) {
+            float dot_ak_uj = 0.0f;
+            float dot_uj_uj = 0.0f;
+            for (size_t i = 0; i < M.cols; i++) dot_ak_uj += matrix_at(M, i, k)*matrix_at(u, i, j);
+            for (size_t i = 0; i < M.cols; i++) dot_uj_uj += matrix_at(u, i, j)*matrix_at(u, i, j);
+            for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, k) -= dot_ak_uj/dot_uj_uj*matrix_at(u, i, j);
+        }
+        
+        float norm_uk = 0.0f;
+        for (size_t i = 0; i < M.cols; i++) norm_uk += matrix_at(u, i, k)*matrix_at(u, i, k);
+        norm_uk = sqrtf(norm_uk);
+        for (size_t i = 0; i < M.rows; i++) {
+            matrix_at(*Q, i, k) = matrix_at(u, i, k)/norm_uk;
+        }
+    }
+
+    for (size_t i = 0; i < M.rows; i++) {
+        for (size_t j = i; j < M.cols; j++) {
+            float dot_ei_aj = 0.0f;
+            for (size_t k = 0; k < M.cols; k++) dot_ei_aj += matrix_at(M, k, j)*matrix_at(*Q, k, i);
+            matrix_at(*R, i, j) = dot_ei_aj;
+        }
+    }
+
+    free_matrix(u);
+}
+
+#define TRIANGULAR_TOL 1e-2
+bool is_lower_triangular(Matrix M)
+{
+    if (M.rows != M.cols) return false;
+    for (size_t i = 1; i < M.rows; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (fabsf(matrix_at(M, i, j)) > TRIANGULAR_TOL) return false;
+        }
+    }
+    return true;
+}
+
+bool is_upper_triangular(Matrix M)
+{
+    if (M.rows != M.cols) return false;
+    for (size_t i = 0; i < M.rows; i++) {
+        for (size_t j = i+1; j < M.cols; j++) {
+            if (fabsf(matrix_at(M, i, j)) > TRIANGULAR_TOL) return false;
+        }
+    }
+    return true;
+}
+
+bool is_triangular(Matrix M)
+{
+    return is_upper_triangular(M) || is_lower_triangular(M);
+}
+
+float* find_eigenvalues(Matrix M)
+{
+    bool solved;
+    Matrix *M_current;
+    Matrix Q, R, M_next;
+
+    if (M.rows != M.cols) {
+        fprintf(stderr, "ERROR: finding eigenvalue of non-square matrix with %zu rows and %zu cols\n", M.rows, M.cols);
+        return NULL;
+    }
+
+    Q = zero_matrix(M.rows, M.cols);
+    R = zero_matrix(M.rows, M.cols);
+    M_next = zero_matrix(M.rows, M.cols);
+    
+    float *eigenvalues = malloc(M.cols*sizeof(float));
+    if (eigenvalues == NULL) {
+        fprintf(stderr, "ERROR: could not allocate memory for %zu eigenvalues\n", M.rows);
+        return NULL;
+    }
+
+    size_t iters = 0;
+    const size_t max_iters = 100;
+    M_current = &M;
+    do {
+        QR_decomposition(*M_current, &Q, &R);
+        matrix_multiplication(R, Q, &M_next);
+        if (is_triangular(M_next)) {
+            solved = true;
+            break;
+        } else {
+            M_current = &M_next;
+        }
+        iters += 1;
+    } while (iters < max_iters);
+
+    if (solved) {
+        for (size_t i = 0; i < M.cols; i++) {
+            eigenvalues[i] = matrix_at(M_next, i, i);
+        }
+        free_matrix(Q);
+        free_matrix(R);
+    }
+    free_matrix(M_next);
+
+    return eigenvalues;
 }
 
 // TODO: partial pivoting

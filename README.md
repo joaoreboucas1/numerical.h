@@ -4,7 +4,7 @@
 **WARNING**: This is a personal project just for fun, so the public API is completely unstable and for now I don't really want to optimize the routines. Use this library at your own risk.
 
 ## Implemented routines
-  - Linear algebra utilities: a `Matrix` struct with matrix multiplication, LU decomposition, determinant, inverse matrix, solving linear systems of equations
+  - Linear algebra utilities: a `Matrix` struct with matrix multiplication, LU decomposition, QR decomposition, determinant, inverse matrix, solving linear systems of equations, eigenvalue finding
   - Numerical integration: trapezoid rule for functions of one variable (that may accept additional parameters)
   - ODEs: ODE system solver via Euler's algorithm
   - Interpolation: Linear interpolator and Cubic Spline interpolator
