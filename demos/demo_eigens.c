@@ -22,21 +22,22 @@ ALLOCATES Matrix* QR_decomposition(Matrix M)
         matrix_at(e, i, 0) = matrix_at(M, i, 0)/norm_u0;
     }
 
-    for (size_t j = 1; j < M.cols; j++) {
-        float norm_uj = 0.0f;
-        for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, j) = matrix_at(M, i, j);
+    for (size_t k = 1; k < M.cols; k++) {
+        for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, k) = matrix_at(M, i, k);
         
-        for (size_t k = 0; k < j; k++) {
-            float dot_aj_uk = 0.0f;
-            float dot_uk_uk = 0.0f;
-            for (size_t n = 0; n < M.cols; n++) dot_aj_uk += matrix_at(M, n, j)*matrix_at(u, n, k);
-            for (size_t n = 0; n < M.cols; n++) dot_uk_uk += matrix_at(u, n, k)*matrix_at(u, n, k);
-            for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, j) -= dot_aj_uk/dot_uk_uk*matrix_at(u, i, k);
+        for (size_t j = 0; j < k; j++) {
+            float dot_ak_uj = 0.0f;
+            float dot_uj_uj = 0.0f;
+            for (size_t i = 0; i < M.cols; i++) dot_ak_uj += matrix_at(M, i, k)*matrix_at(u, i, j);
+            for (size_t i = 0; i < M.cols; i++) dot_uj_uj += matrix_at(u, i, j)*matrix_at(u, i, j);
+            for (size_t i = 0; i < M.cols; i++) matrix_at(u, i, k) -= dot_ak_uj/dot_uj_uj*matrix_at(u, i, j);
         }
-        for (size_t i = 0; i < M.cols; i++) norm_uj += matrix_at(u, i, j)*matrix_at(u, i, j);
-        norm_uj = sqrtf(norm_uj);
+        
+        float norm_uk = 0.0f;
+        for (size_t i = 0; i < M.cols; i++) norm_uk += matrix_at(u, i, k)*matrix_at(u, i, k);
+        norm_uk = sqrtf(norm_uk);
         for (size_t i = 0; i < M.rows; i++) {
-            matrix_at(e, i, j) = matrix_at(u, i, j)/norm_uj;
+            matrix_at(e, i, k) = matrix_at(u, i, k)/norm_uk;
         }
     }
 
@@ -103,9 +104,12 @@ ALLOCATES float* find_eigenvalues(Matrix M)
     do {
         QR = QR_decomposition(*M_current);
         Q = QR[0];
-        R = QR[1];
+        R = QR[1];        
+        print_matrix(Q, "Q");
+        print_matrix(R, "R");
+        printf("------------------------\n");
         M_next = matrix_multiplication(R, Q);
-        print_matrix(M_next, "M");
+        print_matrix(M_next, "RQ");
         if (is_triangular(M_next)) {
             solved = true;
             break;
