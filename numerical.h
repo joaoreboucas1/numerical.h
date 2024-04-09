@@ -50,7 +50,7 @@ bool is_lower_triangular(Matrix A); // Checks if matrix M is lower triangular
 bool is_triangular(Matrix A); // Checks if matrix M is triangular
 void QR_decomposition(Matrix M, Matrix *Q, Matrix *R); // Performs QR decomposition of the matrix M, saving the results into Q and R
 ALLOCATES float *find_eigenvalues(Matrix A); // Finds the eigenvalues of the matrix A
-ALLOCATES Matrix *LU_decomposition(Matrix A); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
+void LU_decomposition(Matrix A, Matrix *L, Matrix *U); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 ALLOCATES Matrix inverse_matrix(Matrix A); // Returns a new `Matrix` which is the inverse of the input matrix A
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
 float determinant(Matrix A); // Computes the determinant of a `Matrix` A
@@ -284,39 +284,34 @@ float* find_eigenvalues(Matrix M)
 }
 
 // TODO: partial pivoting
-Matrix *LU_decomposition(Matrix A)
+void LU_decomposition(Matrix A, Matrix *L, Matrix *U)
 {
     if (A.rows != A.cols) {
         fprintf(stderr, "ERROR: LU decomposition can only be performed for square matrices, found rows = %zu, cols = %zu\n", A.rows, A.cols);
-        return NULL;
     }
 
-    Matrix L = zero_matrix(A.rows, A.cols);
-    Matrix U = zero_matrix(A.rows, A.cols);
-
     for (size_t i = 0; i < A.rows; i++) {
-        matrix_at(L, i, i) = 1.0f;
+        matrix_at(*L, i, i) = 1.0f;
     }
     
     for (size_t j = 0; j < A.rows; j++) {
         for (size_t i = 0; i <= j; i++) {
-            matrix_at(U, i, j) = matrix_at(A, i, j);
+            matrix_at(*U, i, j) = matrix_at(A, i, j);
             if (i > 0) {
                 for (size_t k = 0; k < i; k++) {
-                    matrix_at(U, i, j) -= matrix_at(L, i, k)*matrix_at(U, k, j);
+                    matrix_at(*U, i, j) -= matrix_at(*L, i, k)*matrix_at(*U, k, j);
                 }
             }
         }
 
         for (size_t i = j; i < A.rows; i++) {
-            matrix_at(L, i, j) = matrix_at(A, i, j);
+            matrix_at(*L, i, j) = matrix_at(A, i, j);
             for (int k = 0; k < (int) j; k++) {
-                matrix_at(L, i, j) -= matrix_at(L, i, k)*matrix_at(U, k, j);
+                matrix_at(*L, i, j) -= matrix_at(*L, i, k)*matrix_at(*U, k, j);
             }
-            matrix_at(L, i, j) /= matrix_at(U, j, j);
+            matrix_at(*L, i, j) /= matrix_at(*U, j, j);
         }
     }
-    return (Matrix[2]) { L, U };
 }
 
 void print_matrix(Matrix A, const char* matrix_name)
@@ -333,9 +328,9 @@ void print_matrix(Matrix A, const char* matrix_name)
 // Inspired by https://home.cc.umanitoba.ca/~farhadi/Math2120/Inverse%20Using%20LU%20decomposition.pdf
 Matrix inverse_matrix(Matrix A)
 {
-    Matrix *LU = LU_decomposition(A);
-    Matrix L = LU[0];
-    Matrix U = LU[1];
+    Matrix L = zero_matrix(A.rows, A.cols);
+    Matrix U = zero_matrix(A.rows, A.cols);
+    LU_decomposition(A, &L, &U);
 
     // Invert U
     Matrix U_inv = identity(U.rows);
@@ -414,10 +409,9 @@ Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim)
     }
 
     Matrix X = zero_matrix(B.rows, 1);
-
-    Matrix *LU = LU_decomposition(A);
-    Matrix L = LU[0];
-    Matrix U = LU[1];
+    Matrix L = zero_matrix(A.rows, A.cols);
+    Matrix U = zero_matrix(A.rows, A.cols);
+    LU_decomposition(A, &L, &U);
 
     for (size_t i = 0; i < U.cols; i++) {
         if (matrix_at(U, i, i) == 0.0f) {
@@ -459,15 +453,18 @@ float determinant(Matrix A)
         fprintf(stderr, "ERROR: determinant is only defined for square matrices, found rows = %zu, cols = %zu\n", A.rows, A.cols);
         return 0.0f;
     }
-    Matrix *LU = LU_decomposition(A);
-    Matrix U = LU[1];
+
+    Matrix L = zero_matrix(A.rows, A.cols);
+    Matrix U = zero_matrix(A.rows, A.cols);
+    LU_decomposition(A, &L, &U);
+    
 
     float result = 1;
     for (size_t i = 0; i < U.rows; i++) {
         result *= matrix_at(U, i, i);
     }
+    free_matrix(L);
     free_matrix(U);
-    free_matrix(LU[0]);
     return result;
 
 }
@@ -575,9 +572,9 @@ float eval_linear_interpolator(LinearInterp interp, float x)
 {
     size_t index = 0;
     if (x < interp.xs[0]) {
-        printf("WARNING: interpolation function evaluated below x_min = %f, extrapolating linearly.\n", interp.xs[0]);
+        printf("WARNING: interpolation function evaluated at x = %f which is below x_min = %f, extrapolating linearly.\n", x, interp.xs[0]);
     } else if (x > interp.xs[interp.n_points-1]) {
-        printf("WARNING: interpolation function evaluated above x_max = %f, extrapolating linearly.\n", interp.xs[interp.n_points-1]);
+        printf("WARNING: interpolation function evaluated at x = %f which is above x_max = %f, extrapolating linearly.\n", x, interp.xs[interp.n_points-1]);
         index = interp.n_points - 2;
     } else {
         // Find index
