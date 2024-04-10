@@ -12,7 +12,8 @@ int main()
         {1.0f, 1.0f, -1.0f}
     };
     Matrix A = matrix_from_literal(n_dim, n_dim, coefs);
-    Matrix A_inv = inverse_matrix(A);
+    Matrix A_inv = zero_matrix(A.rows, A.cols);
+    inverse_matrix(A, &A_inv);
     print_matrix(A, "A");
     print_matrix(A_inv, "A^-1");
 }

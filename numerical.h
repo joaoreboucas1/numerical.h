@@ -48,10 +48,10 @@ void matrix_multiplication(Matrix A, Matrix B, Matrix *AB); // Performs matrix m
 bool is_upper_triangular(Matrix A); // Checks if matrix M is upper triangular
 bool is_lower_triangular(Matrix A); // Checks if matrix M is lower triangular
 bool is_triangular(Matrix A); // Checks if matrix M is triangular
-void QR_decomposition(Matrix M, Matrix *Q, Matrix *R); // Performs QR decomposition of the matrix M, saving the results into Q and R
 ALLOCATES float *find_eigenvalues(Matrix A); // Finds the eigenvalues of the matrix A
+void QR_decomposition(Matrix M, Matrix *Q, Matrix *R); // Performs QR decomposition of the matrix M, saving the results into Q and R
 void LU_decomposition(Matrix A, Matrix *L, Matrix *U); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
-ALLOCATES Matrix inverse_matrix(Matrix A); // Returns a new `Matrix` which is the inverse of the input matrix A
+void inverse_matrix(Matrix A, Matrix *A_inv); // Returns a new `Matrix` which is the inverse of the input matrix A
 ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
 float determinant(Matrix A); // Computes the determinant of a `Matrix` A
 void free_matrix(Matrix M); // Frees the dynamic storage of M
@@ -326,7 +326,7 @@ void print_matrix(Matrix A, const char* matrix_name)
 }
 
 // Inspired by https://home.cc.umanitoba.ca/~farhadi/Math2120/Inverse%20Using%20LU%20decomposition.pdf
-Matrix inverse_matrix(Matrix A)
+void inverse_matrix(Matrix A, Matrix *A_inv)
 {
     Matrix L = zero_matrix(A.rows, A.cols);
     Matrix U = zero_matrix(A.rows, A.cols);
@@ -342,7 +342,6 @@ Matrix inverse_matrix(Matrix A)
                     free_matrix(L);
                     free_matrix(U);
                     free_matrix(U_inv);
-                    return (Matrix) {0};
                 }
                 for (size_t k = 0; k < U.cols; k++) {
                     matrix_at(U_inv, i, k) /= matrix_at(U, i, j);
@@ -383,21 +382,11 @@ Matrix inverse_matrix(Matrix A)
         }
     }
 
-    // print_matrix(L, "L");
-
     // Multiply (U^-1)(L^-1)
-    Matrix A_inv = zero_matrix(A.rows, A.cols);
-    for (size_t i = 0; i < A.rows; i++) {
-        for (size_t j = 0; j < A.cols; j++) {
-            for (size_t k = 0; k < A.cols; k++) {
-                matrix_at(A_inv, i, j) += matrix_at(U_inv, i, k)*matrix_at(L_inv, k, j);
-            }
-        }
-    }
+    matrix_multiplication(U_inv, L_inv, A_inv);
     free_matrix(L);
     free_matrix(U);
     free_matrix(U_inv);
-    return A_inv;
 }
 
 // Via LU decomposition, from Numerical Recipes in C, 2nd edition, chapter 2.3
