@@ -79,7 +79,7 @@ float find_root(float f(float), float x_min, float x_max, size_t max_iters, floa
 float minimize(float f(float), float x, float rate, size_t max_iters); // Finds a local minimum of the function f(x) using gradient descent and finite difference. Control descent rate and max number of iterations.
 
 // FFT
-ALLOCATES float complex *fft(float complex *in, int n); // Returns the fft of the input signal in (as float complex)
+void fft(float complex *in, float complex *out, int n); // Returns the fft of the input signal `in` (as float complex)
 
 #ifdef NUMERICAL_IMPLEMENTATION
 #include <math.h>
@@ -738,21 +738,14 @@ void _fft(float complex *buf, float complex *aux, int n, int step)
 }
 
 // Blatantly copy-pasted from https://rosettacode.org/wiki/Fast_Fourier_transform#C
-float complex *fft(float complex *in, int n)
+void fft(float complex *in, float complex *out, int n)
 {
-
 	float complex aux[n];
-    float complex *out = malloc(n*sizeof(float complex));
-    if (out == NULL) {
-        fprintf(stderr, "ERROR: could not allocate memory for FFT\n");
-        return NULL;
-    }
     
     memcpy(aux, in, n*sizeof(float complex));
     memcpy(out, in, n*sizeof(float complex));
  
 	_fft(out, aux, n, 1);
-    return out;
 }
 
 void free_matrix(Matrix M)
