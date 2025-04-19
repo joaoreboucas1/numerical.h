@@ -1,16 +1,24 @@
-#ifndef INTEGRATE_H_
-#define INTEGRATE_H_
+#ifndef NUMERICAL_H_
+#define NUMERICAL_H_
 
 #include <stddef.h>
 #include <stdbool.h>
 #include <complex.h>
 
-#define ALLOCATES // Tag for functions that allocate memory for their outputs, so the user knows they need to free the outputs
+// Matrix with linear memory layout
+typedef struct {
+    size_t rows;
+    size_t cols;
+    float *elements;
+} Matrix;
+#define matrix_at(M, i, j) (M).elements[(i)*(M).cols + (j)]
 
 // Parameters to be passed into functions for numerical integration
 typedef struct {
     int *int_args;
+    size_t int_argc;
     float *float_args;
+    size_t float_argc;
 } Params;
 
 // Linear interpolator
@@ -31,28 +39,20 @@ typedef struct {
     size_t n_points;
 } CubicSpline;
 
-// Matrix (with linear memory layout)
-typedef struct {
-    size_t rows;
-    size_t cols;
-    float *elements;
-} Matrix;
-#define matrix_at(M, i, j) (M).elements[(i)*(M).cols + (j)]
-
 // Linear algebra
-ALLOCATES Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
-ALLOCATES Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
-ALLOCATES Matrix zero_matrix(size_t n_rows, size_t n_cols); // Allocates a `Matrix` object with all elements zero
-ALLOCATES Matrix identity(size_t n_rows); // Allocates a new `Matrix` object equivalent to the NxN identity 
+Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][n_cols]); // Create a `Matrix` object from matrix literal float[rows][cols]
+Matrix column_matrix(size_t n_rows, float *elements); // Create a `Matrix` object with a single column from 1D array
+Matrix zero_matrix(size_t n_rows, size_t n_cols); // Create a `Matrix` object with all elements zero
+Matrix identity(size_t n_rows); // a new `Matrix` object equivalent to the n_rows x n_rows identity 
 void matrix_multiplication(Matrix A, Matrix B, Matrix *AB); // Performs matrix multiplication and returns a new `Matrix` M = AB
 bool is_upper_triangular(Matrix A); // Checks if matrix M is upper triangular
 bool is_lower_triangular(Matrix A); // Checks if matrix M is lower triangular
 bool is_triangular(Matrix A); // Checks if matrix M is triangular
-ALLOCATES float *find_eigenvalues(Matrix A); // Finds the eigenvalues of the matrix A
+float *find_eigenvalues(Matrix A); // Finds the eigenvalues of the matrix A
 void QR_decomposition(Matrix M, Matrix *Q, Matrix *R); // Performs QR decomposition of the matrix M, saving the results into Q and R
 void LU_decomposition(Matrix A, Matrix *L, Matrix *U); // Performs LU decomposition of a `Matrix` A, returning two `Matrix` objects L and U
 void inverse_matrix(Matrix A, Matrix *A_inv); // Returns a new `Matrix` which is the inverse of the input matrix A
-ALLOCATES Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
+Matrix solve_linear_system(Matrix A, Matrix B, size_t n_dim); // Solves the linear system A*X = B, returning X as a `Matrix` object with a single column
 float determinant(Matrix A); // Computes the determinant of a `Matrix` A
 void free_matrix(Matrix M); // Frees the dynamic storage of M
 
@@ -61,14 +61,14 @@ float trapezoid(float f(float), float a, float b, size_t N); // Integrate f from
 float trapezoid_args(float f(float, Params), float a, float b, size_t N, Params params); // Integrate function with parameters
 
 // ODE integration
-ALLOCATES float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps via Euler's algorithm
-ALLOCATES float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim); // Solve N-dimensional ODE y'(y, x) = f(y, x) (where y is `n_dim`-sized array) with initial conditions (x_0, y_0) and n_steps steps via Euler's algorithm. The user must allocate memory for the derivative array and pass the pointer into the function `y_prime` (so the user must manage the memory for the derivatives)
+float* odesolve(float f(float, float), float y_0, float x_0, float x_final, size_t nsteps); // Solve 1D ODE y'(y, x) = f(y, x) with initial conditions (x_0, y_0) and nsteps steps via Euler's algorithm
+float **odesolve_nd(void y_prime(float*, float, float*), float* y_initial, float x_initial, float x_final, size_t n_steps, size_t n_dim); // Solve N-dimensional ODE y'(y, x) = f(y, x) (where y is `n_dim`-sized array) with initial conditions (x_0, y_0) and n_steps steps via Euler's algorithm. The user must allocate memory for the derivative array and pass the pointer into the function `y_prime` (so the user must manage the memory for the derivatives)
 
 // Interpolation
-ALLOCATES LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
+LinearInterp get_linear_interpolator(float* xs, float* ys, size_t n_points); // Create a `LinearInterpolator` object from the data, representing the function y(x)
 float eval_linear_interpolator(LinearInterp interp, float x); // Evaluate a `LinearInterpolator` object at `x`
 void free_linear_interpolator(LinearInterp interp); // Frees the storage of the `LinearInterpolator` (`xs` is not freed)
-ALLOCATES CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
+CubicSpline get_cubic_spline(float* xs, float* ys, size_t n_points); // Create a `CubicSpline` object from the data, representing the function y(x)
 float eval_cubic_spline(CubicSpline interp, float x); // Evaluate a `CubicSpline` object at `x`
 void free_cubic_spline(CubicSpline interp); // Frees the storage of the `CubicSpline` (`xs` is not freed)
 
@@ -94,12 +94,13 @@ Matrix matrix_from_literal(size_t n_rows, size_t n_cols, float elements[n_rows][
         return (Matrix) {0};
     }
 
+    Matrix m = {.rows = n_rows, .cols = n_cols, .elements = m_elements};
     for (size_t i = 0; i < n_rows; i++) {
         for (size_t j = 0; j < n_cols; j++) {
-            m_elements[i*n_cols + j] = elements[i][j];
+            matrix_at(m, i, j) = elements[i][j];
         }
     }
-    return (Matrix) {.rows = n_rows, .cols = n_cols, .elements = m_elements};
+    return m;
 }
 
 Matrix column_matrix(size_t n_rows, float *elements)
@@ -757,4 +758,4 @@ void free_cubic_spline(CubicSpline interp)
 }
 
 #endif // INTEGRATE_IMPLEMENTATION
-#endif // INTEGRATE_H_
+#endif // NUMERICAL_H_
